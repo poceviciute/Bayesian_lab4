@@ -1,0 +1,46 @@
+---
+title: "732A91 Lab 2"
+author: "Fanny Karelius (fanka300), Milda Poceviciute (milpo192)"
+date: "15 May 2018"
+output: html_document
+---
+
+#Question 1: Poisson regression - the MCMC way
+
+The $y_i$th ($i=1,...,n$) count of for the $i$th observation in the sample follows the following regression model:
+$$y_i|\beta \sim Poisson[exp(x_i^{T}\beta)]$$
+where $x_i$ is a $p$-dimensional vector of covariates.
+
+
+The response variable is nBids and records the number of bids in each auction. The remaining variables are features/covariates (x): 
+Const (for the intercept) 
+PowerSeller (is the seller selling large volumes on eBay?) 
+VerifyID (is the seller veri???ed by eBay?) 
+Sealed (was the coin sold sealed in never opened envelope?) 
+MinBlem (did the coin have a minor defect?) 
+MajBlem (a major defect?) 
+LargNeg (did the seller get a lot of negative feedback from customers?) 
+LogBook (logarithm of the coins book value according to expert sellers. Standardized) 
+MinBidShare (a variable that measures ratio of the minimum selling price (starting price) to the book value. Standardized).
+
+##a)
+
+```{r}
+data <- read.table("eBayNumberOfBidderdata.dat", header = TRUE)
+c <- c(1,3:ncol(data))
+data_noC <- data[,c]
+glm_fit <- glm(nBids~., family=poisson, data_noC)
+summary(glm_fit)
+```
+
+##b)
+
+##c)
+
+##d)
+
+
+
+#Appendix
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```

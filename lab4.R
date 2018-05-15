@@ -41,6 +41,9 @@ post_approx <- rmvnorm(n=1000, mean=beta_tilde, sigma=inv_hessian)
 colnames(post_approx) <- colnames(x)
 #hist(post_approx[,"VerifyID"], freq = FALSE)
 
+
+#c)
+
 metropolis <- function(n, c, sigma, logpostfun,theta,...){
   thetas <- matrix(nrow=n+1, ncol=length(theta))
   thetas[1,]<-theta
@@ -69,3 +72,15 @@ metropolis <- function(n, c, sigma, logpostfun,theta,...){
 beta_metro <- metropolis(1000, c=1, sigma=inv_hessian, log_poisson, theta=betas_init, y=y, x=x)
 phi <- exp(beta_metro)
 plot(phi[,1], type="l")
+for(i in 1:ncol(phi)){
+  plot(phi[,i], type="l", xlab="Iteration", ylab=paste0("phi_", i), main=paste0("phi_", i))
+}
+phi_means <- colMeans(phi)
+
+for(i in 1:ncol(phi)){
+  hist(phi[,i], freq=FALSE, ylab=paste0("phi_", i), main=paste0("phi_", i))
+}
+
+
+#d)
+
