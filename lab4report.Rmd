@@ -11,17 +11,7 @@ The $y_i$th ($i=1,...,n$) count of for the $i$th observation in the sample follo
 $$y_i|\beta \sim Poisson[exp(x_i^{T}\beta)]$$
 where $x_i$ is a $p$-dimensional vector of covariates.
 
-
-The response variable is nBids and records the number of bids in each auction. The remaining variables are features/covariates (x): 
-Const (for the intercept) 
-PowerSeller (is the seller selling large volumes on eBay?) 
-VerifyID (is the seller veri???ed by eBay?) 
-Sealed (was the coin sold sealed in never opened envelope?) 
-MinBlem (did the coin have a minor defect?) 
-MajBlem (a major defect?) 
-LargNeg (did the seller get a lot of negative feedback from customers?) 
-LogBook (logarithm of the coins book value according to expert sellers. Standardized) 
-MinBidShare (a variable that measures ratio of the minimum selling price (starting price) to the book value. Standardized).
+The data set contains observations form 1000 eBay auctions of coins. The response variable is nBids (the number of bids in each auction). The covariates are Const (intercept), PowerSeller, VerifyID, Sealed, MinBlem, MajBlem, LargNeg, LogBook and MinBidShare.
 
 ##a)
 
@@ -33,11 +23,117 @@ glm_fit <- glm(nBids~., family=poisson, data_noC)
 summary(glm_fit)
 ```
 
+From the summary we see that the Intercept, VerifyID, Sealed, MajBlem, LogBook and MinBidShare are significant covariates.
+
 ##b)
+
+Here we do Bayesian analysis of the Poisson regression. The prior is $\beta\sim N(0,100\cdot(X^TX)^{-1})$, where $X$ is a $n\times p$ covariate matrix, which is called Zellner's g-prior. We assume that the posterior density is approximately multivariate normal:
+$$\beta|y\sim N(\tilde{\beta}, J_y^{-1}(\tilde{\beta}))$$
+where $\tilde{\beta}$ is the posterior mode and $J_y(\tilde{\beta})$ is the negative Hessian at the posterior mode. 
+
+```{r}
+library(mvtnorm)
+
+log_poisson <- function(beta, y, x){
+  x <- as.matrix(x)
+  xtx <- solve(t(x)%*%x)
+  y <- as.matrix(y)
+  lin_pred <- x%*%beta
+  loglik <- sum(y*lin_pred-exp(lin_pred))/sum(log(factorial(y)))
+  logprior <- dmvnorm(beta, mean=as.vector(rep(0,ncol(x))), sigma=100*xtx, log = TRUE)
+  logpost <- loglik+logprior
+  logpost
+}
+
+betas_init <- as.vector(rep(0,ncol(data)-1))
+y <- data$nBids
+x<- data[,2:ncol(data)]
+optim_fit <- optim(betas_init, log_poisson, gr=NULL, y, x, method=c("BFGS"),control=list(fnscale=-1), hessian=TRUE)
+
+beta_tilde <- optim_fit$par
+hessian <- -1*optim_fit$hessian
+inv_hessian <- solve(hessian)
+
+post_approx <- rmvnorm(n=1000, mean=beta_tilde, sigma=inv_hessian)
+colnames(post_approx) <- colnames(x)
+phi_b <- exp(post_approx)
+```
+
+```{r,echo=FALSE}
+print("The posterior mode:")
+beta_tilde
+print("The negative inverse Hessian:")
+inv_hessian
+```
+
 
 ##c)
 
+The Metropolis algorithm simulates from the actual posterior of $\beta$. We use 
+$$\theta_p|\theta_c\sim N(\theta_c,\tilde{c}\cdot\Sigma)$$
+where $\Sigma=J_y^{-1}(\tilde{\beta})$, to draw $\theta$s. The value $\tilde{c}$ is a tuning parameter. The acceptance rate is given by $$\alpha=\min\{1,\frac{p(\theta_p|y)}{p(\theta_c|y)}=\exp[\log(p(\theta_p|y))-log(p(\theta_c|y))]\}$$. We aim to have an acceptance rate of the Metropolis algorithm around 30%. 
+
+```{r}
+metropolis <- function(n, c, sigma, logpostfun, theta,...){
+  thetas <- matrix(nrow=n+1, ncol=length(theta))
+  thetas[1,]<-theta
+  temp1 <-logpostfun(thetas[1,],...)
+  acc_prob <- vector(length=n)
+  acc_prob[1] <- 0
+  for(i in 1:n){
+    temp_theta<-rmvnorm(n=1, thetas[i,], c*sigma)
+    temp2 <-logpostfun(as.vector(temp_theta),...)
+    acc_prob[i+1] <- min(1,exp(temp2-temp1))
+    u <- runif(n = 1,0,1)
+    if(u>acc_prob[i+1]){
+      thetas[i+1,]<-thetas[i,]
+    }
+    else{
+      thetas[i+1,] <- temp_theta
+      temp1 <- temp2
+    }
+  }
+  data.frame(thetas, "acc.prob"=acc_prob)
+}
+metro2 <- metropolis(1000, c=1, sigma=inv_hessian, log_poisson, theta=betas_init, y=y, x=x)
+metro <- metropolis(1000, c=0.5, sigma=inv_hessian, log_poisson, theta=betas_init, y=y, x=x)
+
+acc_prob <- as.vector(metro$acc.prob)
+avg_acc <- mean(acc_prob)
+
+beta_metro <- as.matrix(metro[,1:length(betas_init)])
+phi <- exp(beta_metro)
+```
+
+```{r, echo=FALSE}
+par(mfrow=c(2,2))
+hist(phi[,1], freq = FALSE, main="phi_1 c)", xlab = "phi_1")
+hist(phi_b[,1], freq = FALSE, main="phi_1 b)", xlab = "phi_1")
+hist(phi[,3], freq = FALSE, main="phi_3 c)", xlab = "phi_3")
+hist(phi_b[,3], freq = FALSE, main="phi_3 b)", xlab = "phi_3")
+par(mfrow=c(2,2))
+hist(phi[,6], freq = FALSE, main="phi_6 c)", xlab = "phi_6")
+hist(phi_b[,6], freq = FALSE, main="phi_6 b)", xlab = "phi_6")
+hist(phi[,9], freq = FALSE, main="phi_9 c)", xlab = "phi_9")
+hist(phi_b[,9], freq = FALSE, main="phi_9 b)", xlab = "phi_9")
+```
+
+From visual inspection, we conclude that the majority of $\phi_i$s are approximated quite well in part b) when compared to draws from the actual distribution.
+
 ##d)
+
+We simulate from the predictive distribution of the number of bidders (nBids) using the MCMC draws from c).
+
+```{r}
+x_vec <- c(1,1,1,1,0,0,0,1,0.5)
+lambda <- exp(x_vec%*%t(beta_metro))
+y_mat <- apply(lambda, 1, function(i){rpois(1000, i)})
+hist(y_mat, freq = FALSE, xlab="y_pred")
+prob_y0 <- length(y_mat[y_mat==0])/length(y_mat)
+```
+```{r, echo=FALSE}
+cat("Probability of nBids=0: ", prob_y0)
+```
 
 
 
