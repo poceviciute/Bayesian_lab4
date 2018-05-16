@@ -1,8 +1,10 @@
 ---
-title: "732A91 Lab 2"
+title: "732A91 Lab 4"
 author: "Fanny Karelius (fanka300), Milda Poceviciute (milpo192)"
 date: "15 May 2018"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 #Question 1: Poisson regression - the MCMC way
@@ -48,7 +50,8 @@ log_poisson <- function(beta, y, x){
 betas_init <- as.vector(rep(0,ncol(data)-1))
 y <- data$nBids
 x<- data[,2:ncol(data)]
-optim_fit <- optim(betas_init, log_poisson, gr=NULL, y, x, method=c("BFGS"),control=list(fnscale=-1), hessian=TRUE)
+optim_fit <- optim(betas_init, log_poisson, gr=NULL, y, x, 
+                   method=c("BFGS"),control=list(fnscale=-1), hessian=TRUE)
 
 beta_tilde <- optim_fit$par
 hessian <- -1*optim_fit$hessian
@@ -103,7 +106,34 @@ avg_acc <- mean(acc_prob)
 
 beta_metro <- as.matrix(metro[,1:length(betas_init)])
 phi <- exp(beta_metro)
+phi_means <- colMeans(phi)
 ```
+
+```{r, echo=FALSE}
+cat("Average acceptance rate with c = 1: ", mean(as.vector(metro2$acc.prob)))
+cat("\n Average acceptance rate with c = 0.5: ", avg_acc)
+```
+
+Hence, we conclude that $\tilde{c} = 0.5$ is appropriate tuning parameter in our case.
+
+```{r,echo=FALSE}
+par(mfrow=c(2,2))
+for(i in 1:ncol(phi)){
+  plot(phi[,i], type="l", xlab="Iteration", ylab=paste0("phi_", i), main=paste0("phi_", i))
+}
+```
+
+From the plots above of our MCMC process we see that the algorithm is converging ok, because the $\beta$s do not get stuck at the same values for longer periods of iterations. The corresponding $\phi_i$ distributions are represenetd by the histograms:
+
+```{r,echo=FALSE}
+par(mfrow=c(2,2))
+for(i in 1:ncol(phi)){
+  hist(phi[,i], freq=FALSE, xlab=paste0("phi_", i), main=paste0("phi_", i))
+  #lines(density(phi[,i]), col="red")
+}
+```
+
+The comparison of simulations from part b) and  part c):
 
 ```{r, echo=FALSE}
 par(mfrow=c(2,2))
@@ -122,13 +152,13 @@ From visual inspection, we conclude that the majority of $\phi_i$s are approxima
 
 ##d)
 
-We simulate from the predictive distribution of the number of bidders (nBids) using the MCMC draws from c).
+We simulate from the predictive distribution of the number of bidders (nBids) using the MCMC draws from c). The provided covariates are PowerSeller = 1, VerifyID = 1, Sealed = 1, MinBlem = 0, MajBlem = 0, LargNeg = 0, LogBook = 1, and MinBidShare = 0.5.
 
 ```{r}
 x_vec <- c(1,1,1,1,0,0,0,1,0.5)
 lambda <- exp(x_vec%*%t(beta_metro))
 y_mat <- apply(lambda, 1, function(i){rpois(1000, i)})
-hist(y_mat, freq = FALSE, xlab="y_pred")
+hist(y_mat, freq = FALSE, xlab="y_pred", main="Predictive Distribution of nBids",breaks = 25)
 prob_y0 <- length(y_mat[y_mat==0])/length(y_mat)
 ```
 ```{r, echo=FALSE}
