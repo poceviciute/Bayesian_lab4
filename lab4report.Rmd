@@ -3,7 +3,6 @@ title: "732A91 Lab 4"
 author: "Fanny Karelius (fanka300), Milda Poceviciute (milpo192)"
 date: "15 May 2018"
 output:
-  pdf_document: default
   html_document: default
 ---
 
@@ -41,7 +40,7 @@ log_poisson <- function(beta, y, x){
   xtx <- solve(t(x)%*%x)
   y <- as.matrix(y)
   lin_pred <- x%*%beta
-  loglik <- sum(y*lin_pred-exp(lin_pred))/sum(log(factorial(y)))
+  loglik <- sum(y*lin_pred-exp(lin_pred))
   logprior <- dmvnorm(beta, mean=as.vector(rep(0,ncol(x))), sigma=100*xtx, log = TRUE)
   logpost <- loglik+logprior
   logpost
@@ -100,11 +99,12 @@ metropolis <- function(n, c, sigma, logpostfun, theta,...){
 }
 metro2 <- metropolis(1000, c=1, sigma=inv_hessian, log_poisson, theta=betas_init, y=y, x=x)
 metro <- metropolis(1000, c=0.5, sigma=inv_hessian, log_poisson, theta=betas_init, y=y, x=x)
+metro3 <- metropolis(1000, c=0.8, sigma=inv_hessian, log_poisson, theta=betas_init, y=y, x=x)
 
 acc_prob <- as.vector(metro$acc.prob)
 avg_acc <- mean(acc_prob)
 
-beta_metro <- as.matrix(metro[,1:length(betas_init)])
+beta_metro <- as.matrix(metro3[,1:length(betas_init)])
 phi <- exp(beta_metro)
 phi_means <- colMeans(phi)
 ```
@@ -112,23 +112,27 @@ phi_means <- colMeans(phi)
 ```{r, echo=FALSE}
 cat("Average acceptance rate with c = 1: ", mean(as.vector(metro2$acc.prob)))
 cat("\n Average acceptance rate with c = 0.5: ", avg_acc)
+cat("\n Average acceptance rate with c = 0.8: ", mean(as.vector(metro3$acc.prob)))
 ```
 
-Hence, we conclude that $\tilde{c} = 0.5$ is appropriate tuning parameter in our case.
+Hence, we conclude that $\tilde{c} = 0.8$ is appropriate tuning parameter in our case.
 
 ```{r,echo=FALSE}
+burnin <- 400
+N <- nrow(phi)
 par(mfrow=c(2,2))
 for(i in 1:ncol(phi)){
-  plot(phi[,i], type="l", xlab="Iteration", ylab=paste0("phi_", i), main=paste0("phi_", i))
+  plot(phi[burnin:N,i], type="l", xaxt="n", xlab="Iteration", ylab=paste0("phi_", i), main=paste0("phi_", i))
+  axis(1, at=seq(0, (N-burnin), by=100), labels=seq(burnin, N, by=100))
 }
 ```
 
-From the plots above of our MCMC process we see that the algorithm is converging ok, because the $\beta$s do not get stuck at the same values for longer periods of iterations. The corresponding $\phi_i$ distributions are represenetd by the histograms:
+From the plots above of our MCMC process we see that the algorithm is converging OK, because the $\beta$s do not get stuck at the same values for longer periods of iterations. The corresponding $\phi_i$ distributions are represented by the histograms:
 
 ```{r,echo=FALSE}
 par(mfrow=c(2,2))
 for(i in 1:ncol(phi)){
-  hist(phi[,i], freq=FALSE, xlab=paste0("phi_", i), main=paste0("phi_", i))
+  hist(phi[burnin:N,i], freq=FALSE, xlab=paste0("phi_", i), main=paste0("phi_", i))
   #lines(density(phi[,i]), col="red")
 }
 ```
@@ -137,14 +141,14 @@ The comparison of simulations from part b) and  part c):
 
 ```{r, echo=FALSE}
 par(mfrow=c(2,2))
-hist(phi[,1], freq = FALSE, main="phi_1 c)", xlab = "phi_1")
+hist(phi[burnin:N,1], freq = FALSE, main="phi_1 c)", xlab = "phi_1")
 hist(phi_b[,1], freq = FALSE, main="phi_1 b)", xlab = "phi_1")
-hist(phi[,3], freq = FALSE, main="phi_3 c)", xlab = "phi_3")
+hist(phi[burnin:N,3], freq = FALSE, main="phi_3 c)", xlab = "phi_3")
 hist(phi_b[,3], freq = FALSE, main="phi_3 b)", xlab = "phi_3")
 par(mfrow=c(2,2))
-hist(phi[,6], freq = FALSE, main="phi_6 c)", xlab = "phi_6")
+hist(phi[burnin:N,6], freq = FALSE, main="phi_6 c)", xlab = "phi_6")
 hist(phi_b[,6], freq = FALSE, main="phi_6 b)", xlab = "phi_6")
-hist(phi[,9], freq = FALSE, main="phi_9 c)", xlab = "phi_9")
+hist(phi[burnin:N,9], freq = FALSE, main="phi_9 c)", xlab = "phi_9")
 hist(phi_b[,9], freq = FALSE, main="phi_9 b)", xlab = "phi_9")
 ```
 
@@ -158,7 +162,7 @@ We simulate from the predictive distribution of the number of bidders (nBids) us
 x_vec <- c(1,1,1,1,0,0,0,1,0.5)
 lambda <- exp(x_vec%*%t(beta_metro))
 y_mat <- apply(lambda, 1, function(i){rpois(1000, i)})
-hist(y_mat, freq = FALSE, xlab="y_pred", main="Predictive Distribution of nBids",breaks = 25)
+hist(y_mat, freq = FALSE, xlab="Predicted nBids", main="Predictive Distribution of nBids", col = "grey")
 prob_y0 <- length(y_mat[y_mat==0])/length(y_mat)
 ```
 ```{r, echo=FALSE}
